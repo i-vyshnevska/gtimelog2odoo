@@ -6,6 +6,7 @@ import configparser
 import pathlib
 
 from builtins import input
+from distutils import util
 from collections import namedtuple
 from datetime import datetime, date, timedelta
 from getpass import getpass
@@ -77,10 +78,13 @@ class Utils:
             'jira_url',
             'tempo_api',
             'tempo_user',
-            'odoo_url',
-            'odoo_db',
-            'odoo_user'
         ]
+        if result.get('odoo_sync'):
+            mandatory_fields += [
+                'odoo_url',
+                'odoo_db',
+                'odoo_user'
+            ]
         if len(set(mandatory_fields) - set(result.keys())) > 0:
             raise Exception(
                 'Not all mandatory fields are present '
@@ -99,7 +103,7 @@ class Utils:
         return result
 
     @staticmethod
-    def report(to_create, to_delete, attendances):
+    def report(to_create, to_delete, attendances, odoo_sync=None):
         def report_log(logs):
             if not logs:
                 print("N/A")
@@ -119,18 +123,19 @@ class Utils:
         print()
         print("Delete")
         report_log(to_delete)
-
-        print()
-        print("Odoo Attendances")
-        print("================")
-        for day, day_attendances \
-                in groupby(attendances, key=lambda e: e[0].date()):
-            print("{}".format(day))
-            for attendance in day_attendances:
-                print("  {} → {}".format(
-                    attendance[0].time(),
-                    attendance[1] and attendance[1].time()
-                ))
+        
+        if odoo_sync:
+            print()
+            print("Odoo Attendances")
+            print("================")
+            for day, day_attendances \
+                    in groupby(attendances, key=lambda e: e[0].date()):
+                print("{}".format(day))
+                for attendance in day_attendances:
+                    print("  {} → {}".format(
+                        attendance[0].time(),
+                        attendance[1] and attendance[1].time()
+                    ))
 
 
 if __name__ == '__main__':
@@ -147,15 +152,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = Utils.parse_config(args)
+    odoo_sync = util.strtobool(config['odoo_sync'])
 
     odoo_password = tempo_password = env.get('ALL_PASSWORD')
-
-    odoo_password = odoo_password or env.get('ODOO_PASSWORD')
-    if not odoo_password:
-        if args.no_interactive:
-            raise Exception('Password missing in non-interactive, '
-                            'set with ODOO_PASSWORD')
-        odoo_password = getpass('Odoo password: ')
+    if odoo_sync:
+        odoo_password = odoo_password or env.get('ODOO_PASSWORD')
+        if not odoo_password:
+            if args.no_interactive:
+                raise Exception('Password missing in non-interactive, '
+                                'set with ODOO_PASSWORD')
+            odoo_password = getpass('Odoo password: ')
+        config['odoo_password'] = odoo_password
 
     tempo_password = tempo_password or env.get('TEMPO_PASSWORD')
     if not tempo_password:
@@ -163,8 +170,7 @@ if __name__ == '__main__':
             raise Exception('Password missing in non-interactive, '
                             'set with TEMPO_PASSWORD')
         tempo_password = getpass('Tempo (Jira) password: ')
-
-    config['odoo_password'] = odoo_password
+    
     config['tempo_password'] = tempo_password
 
     not_before = datetime.strptime('2019-04-01', '%Y-%M-%d').date()
@@ -189,7 +195,7 @@ if __name__ == '__main__':
         if l not in tempo_logs:
             to_create.append(l)
 
-    Utils.report(to_create, to_delete, attendances)
+    Utils.report(to_create, to_delete, attendances, odoo_sync)
 
     if args.no_interactive or Utils.ask_confirmation():
         for l in to_create:
@@ -197,7 +203,8 @@ if __name__ == '__main__':
 
         for l in to_delete:
             tempo.delete_worklog(l)
-
+    
+    if odoo_sync:
         odoo = OdooClient(config)
         odoo.drop_attendances(config['date_window'])
         for attendance in attendances:

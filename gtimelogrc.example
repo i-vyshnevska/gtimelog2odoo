@@ -2,6 +2,7 @@
 jira_url = https://jira.mydomain.com/
 tempo_api = rest/tempo-timesheets/3/
 tempo_user = my-user
+odoo_sync = True
 odoo_url = https://odoo.mydomain.com/
 odoo_db = awesome_db_name
 odoo_user = my-user

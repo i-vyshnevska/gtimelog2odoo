@@ -16,6 +16,7 @@ respectively to Odoo and Jira.
 
 By default, the script will look for the configuration file in the same folder as itself.
 You can change the location with the parameter described above.
+To disable odoo syncronization set odoo_sync variable in config file to False 
 
 After getting the script, copy the file `gtimelogrc.example` to `gtimelogrc` and add your changes.
 
